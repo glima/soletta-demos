@@ -20,28 +20,34 @@ set(CUSTOM_NODE_GEN_H ${STAGE_DIR}/custom-node-gen.h)
 set(CUSTOM_NODE_GEN_C ${STAGE_DIR}/custom-node-gen.c)
 set(CUSTOM_NODE_GEN_JSON ${STAGE_DIR}/custom-node-gen.json)
 
-execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} --variable=modulesdir soletta
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    OUTPUT_VARIABLE SOLETTA_LIB_PREFIX
-    )
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(SOLETTA soletta>=0.0.1)
 
-execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} --variable=nodeschemapath soletta
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    OUTPUT_VARIABLE SCHEMA_PATH
-    )
+function(pkg_check_variable _pkg _name)
+    string(TOUPPER ${_pkg} _pkg_upper)
+    string(TOUPPER ${_name} _name_upper)
+    string(REPLACE "-" "_" _pkg_upper ${_pkg_upper})
+    string(REPLACE "-" "_" _name_upper ${_name_upper})
+    set(_output_name "${_pkg_upper}_${_name_upper}")
 
-execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} --variable=pkgdatadir soletta
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    OUTPUT_VARIABLE SOLETTA_DATA_DIR
-    )
+    execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} --variable=${_name} ${_pkg}
+        OUTPUT_VARIABLE _pkg_result
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+    set("${_output_name}" "${_pkg_result}" CACHE STRING "pkg-config variable ${_name} of ${_pkg}")
+endfunction()
+
+pkg_check_variable(soletta modulesdir)
+pkg_check_variable(soletta nodeschemapath)
+pkg_check_variable(soletta pkgdatadir)
 
 add_custom_command(OUTPUT ${MONITOR_C} ${MONITOR_GEN_C} ${MONITOR_GEN_H} ${MONITOR_JSON}
     DEPENDS ${MONITOR_RESOURCE}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${STAGE_DIR}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${MODULES_DIR}
     COMMAND ${CMAKE_FIND_ROOT_PATH}/${SOLETTA_PREFIX}/bin/sol-oic-gen.py --schema-dir=${NODE_TYPES_DIR} --node-type-json=${MONITOR_JSON} --node-type-impl=${MONITOR_C} --node-type-gen-c=${MONITOR_GEN_C} --node-type-gen-h=${MONITOR_GEN_H}
-    COMMAND ${CMAKE_FIND_ROOT_PATH}/${SOLETTA_PREFIX}/bin/sol-flow-node-type-validate.py ${CMAKE_FIND_ROOT_PATH}/${SCHEMA_PATH} ${MONITOR_JSON}
-    COMMAND ${CMAKE_FIND_ROOT_PATH}/${SOLETTA_PREFIX}/bin/sol-flow-node-type-gen.py --prefix=sol-flow-node-type --genspec-schema=${CMAKE_FIND_ROOT_PATH}/${SCHEMA_PATH} ${MONITOR_JSON} ${MONITOR_GEN_H} ${MONITOR_GEN_C} ${MONITOR_GEN_JSON}
+    COMMAND ${CMAKE_FIND_ROOT_PATH}/${SOLETTA_PREFIX}/bin/sol-flow-node-type-validate.py ${CMAKE_FIND_ROOT_PATH}/${SOLETTA_NODESCHEMAPATH} ${MONITOR_JSON}
+    COMMAND ${CMAKE_FIND_ROOT_PATH}/${SOLETTA_PREFIX}/bin/sol-flow-node-type-gen.py --prefix=sol-flow-node-type --genspec-schema=${CMAKE_FIND_ROOT_PATH}/${SOLETTA_NODESCHEMAPATH} ${MONITOR_JSON} ${MONITOR_GEN_H} ${MONITOR_GEN_C} ${MONITOR_GEN_JSON}
     )
 
 add_custom_target(custom-node-gen
@@ -50,8 +56,8 @@ add_custom_target(custom-node-gen
     COMMAND echo "Generating custom node code..."
     COMMAND ${CMAKE_COMMAND} -E make_directory ${STAGE_DIR}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${MODULES_DIR}
-    COMMAND ${CMAKE_FIND_ROOT_PATH}/${SOLETTA_PREFIX}/bin/sol-flow-node-type-validate.py ${CMAKE_FIND_ROOT_PATH}/${SCHEMA_PATH} ${CUSTOM_NODE_JSON}
-    COMMAND ${CMAKE_FIND_ROOT_PATH}/${SOLETTA_PREFIX}/bin/sol-flow-node-type-gen.py --prefix=sol-flow-node-type --genspec-schema=${CMAKE_FIND_ROOT_PATH}/${SCHEMA_PATH} ${CUSTOM_NODE_JSON} ${CUSTOM_NODE_GEN_H} ${CUSTOM_NODE_GEN_C} ${CUSTOM_NODE_GEN_JSON}
+    COMMAND ${CMAKE_FIND_ROOT_PATH}/${SOLETTA_PREFIX}/bin/sol-flow-node-type-validate.py ${CMAKE_FIND_ROOT_PATH}/${SOLETTA_NODESCHEMAPATH} ${CUSTOM_NODE_JSON}
+    COMMAND ${CMAKE_FIND_ROOT_PATH}/${SOLETTA_PREFIX}/bin/sol-flow-node-type-gen.py --prefix=sol-flow-node-type --genspec-schema=${CMAKE_FIND_ROOT_PATH}/${SOLETTA_NODESCHEMAPATH} ${CUSTOM_NODE_JSON} ${CUSTOM_NODE_GEN_H} ${CUSTOM_NODE_GEN_C} ${CUSTOM_NODE_GEN_JSON}
     COMMAND echo "Done."
     )
 
@@ -99,9 +105,9 @@ target_link_libraries(custom-node
     )
 
 install(TARGETS monitor custom-node
-    LIBRARY DESTINATION ${SOLETTA_LIB_PREFIX}/flow/
+    LIBRARY DESTINATION ${SOLETTA_MODULESDIR}/flow/
     )
 
 install(FILES ${MONITOR_GEN_JSON} ${CUSTOM_NODE_GEN_JSON}
-    DESTINATION ${SOLETTA_DATA_DIR}/flow/descriptions
+    DESTINATION ${SOLETTA_PKGDATADIR}/flow/descriptions
     )
